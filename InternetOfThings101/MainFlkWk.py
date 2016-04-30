@@ -8,6 +8,8 @@ import time
 import paho.mqtt.client as paho
 import string
 import plotly.plotly as py
+import dweepy
+import pyupm_grove as grove
 from plotly.graph_objs import Scatter, Layout, Figure
 from threading import Thread
 from flask import Flask
@@ -20,6 +22,8 @@ stream_token = '09wwi43qla'
 bar0="**************************************************************"
 bar1="~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 bar2="=============================================================="
+
+relay=grove.GroveRelay(4)
 
 p=0
 stream = py.Stream(stream_token)
@@ -73,7 +77,10 @@ def dataNetworkHandler():
                         message = idDevice + " " + str(packets)
 			print "dataNetworkHandler " + message
 			print "MQTT dataNetworkHandler " + message
-			mqttclient.publish("IoT101/Network", message)
+			pass0={'network':packets}
+			dweepy.dweet_for('hvelazquezs',pass0)
+			mqttmsg="IoT101/"+idDevice+"/Network"
+			mqttclient.publish(mqttmsg,message)			
 			LcdShow=('MAC: '+ idDevice)
 			myLcd.setCursor(1,8) 
 			myLcd.write(' CPU%'+str(psutil.cpu_percent()))
@@ -81,7 +88,6 @@ def dataNetworkHandler():
 			myLcd.write(LcdShow[a:b]) 
 			myLcd.setCursor(1,0)
 			myLcd.write('Pk:' + str(packets))
-			#dataWeatherHandler()
 			data[i]=message
 			a=a+1
 			b=b+1
@@ -101,15 +107,21 @@ class Network(Resource):
 	def get(self):
 		return(data)
 
+def onRelay():
+    relay.on()
+    print "Relay is on..."
+    time.sleep(5)
+    relay.off()
+    print "Relay is off..."
 
 def on_message(mosq, obj, msg):
     print "MQTT dataMessageHandler %s %s" % (msg.topic, msg.payload)
 
 def dataMessageHandler():
     mqttclient = paho.Client()
-    mqttclient.on_message = on_message
+    mqttclient.on_message = on_Relay()
     mqttclient.connect("test.mosquitto.org", 1883, 60)
-    mqttclient.subscribe("IoT101/Message", 0)
+    mqttclient.subscribe("IoT101/iD¿dDevice/Message", 0)
     while mqttclient.loop() == 0:
         pass
 
@@ -165,6 +177,9 @@ def dataPlotlyHandler():
 if __name__ == '__main__':
 
 	
+	#pass0={'network':dataNetwork()}
+	#dweepy.dweet_for('hvelazquezs', pass0)
+
 	signal.signal(signal.SIGINT, interruptHandler)
 
     	threadx = Thread(target=dataNetworkHandler)
@@ -177,6 +192,9 @@ if __name__ == '__main__':
 	threadz.start()
 
     	while True:
+		#pass0={'network':dataNetwork()}
+		#dweepy.dweet_for('hvelazquezs',pass0)
+		
 		print bar1
         	print "Hello Internet of Things 101"
 		#api.add_resource(Network,'/network')
