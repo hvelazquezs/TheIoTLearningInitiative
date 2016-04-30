@@ -8,8 +8,6 @@ import time
 import paho.mqtt.client as paho
 import string
 import plotly.plotly as py
-import dweepy
-import pyupm_grove as grove
 from plotly.graph_objs import Scatter, Layout, Figure
 from threading import Thread
 from flask import Flask
@@ -23,13 +21,12 @@ bar0="**************************************************************"
 bar1="~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 bar2="=============================================================="
 
-relay=grove.GroveRelay(4)
-
 p=0
 stream = py.Stream(stream_token)
 idDevice = "No MAC Get it..."
 message = "Empty message..."
 data={}
+
 
 myLcd = lcd.Jhd1313m1(0, 0x3E, 0x62) 
 myLcd.setCursor(0,0) 
@@ -40,6 +37,8 @@ myLcd.setCursor(1,0)
 myLcd.write('Please Wait . . .') 
 app=Flask(__name__)
 api=Api(app)
+
+
 
 
 def GetMACAdress():
@@ -74,10 +73,7 @@ def dataNetworkHandler():
                         message = idDevice + " " + str(packets)
 			print "dataNetworkHandler " + message
 			print "MQTT dataNetworkHandler " + message
-			pass0={'network':packets}
-			dweepy.dweet_for('hvelazquezs',pass0)
-			mqttmsg="IoT101/"+idDevice+"/Network"
-			mqttclient.publish(mqttmsg,message)			
+			mqttclient.publish("IoT101/Network", message)
 			LcdShow=('MAC: '+ idDevice)
 			myLcd.setCursor(1,8) 
 			myLcd.write(' CPU%'+str(psutil.cpu_percent()))
@@ -85,6 +81,7 @@ def dataNetworkHandler():
 			myLcd.write(LcdShow[a:b]) 
 			myLcd.setCursor(1,0)
 			myLcd.write('Pk:' + str(packets))
+			#dataWeatherHandler()
 			data[i]=message
 			a=a+1
 			b=b+1
@@ -104,33 +101,29 @@ class Network(Resource):
 	def get(self):
 		return(data)
 
-def onRelay():
-    relay.on()
-    print "Relay is on..."
-    time.sleep(5)
-    relay.off()
-    print "Relay is off..."
 
 def on_message(mosq, obj, msg):
     print "MQTT dataMessageHandler %s %s" % (msg.topic, msg.payload)
 
 def dataMessageHandler():
     mqttclient = paho.Client()
-    mqttclient.on_message = on_Relay()
+    mqttclient.on_message = on_message
     mqttclient.connect("test.mosquitto.org", 1883, 60)
-    mqttclient.subscribe("IoT101/iD¿dDevice/Message", 0)
+    mqttclient.subscribe("IoT101/Message", 0)
     while mqttclient.loop() == 0:
-          pass
+        pass
 
 def dataWeatherHandler():
     weather = pywapi.get_weather_from_weather_com('MXJO0043', 'metric')
     msg1 = "Weather.com report in " 
+    #+ weather['location']['city']
     msg2 = ",Temperature "
     msg3 = weather['current_conditions']['temperature']+" C"
     msg4 = ", Atmospheric Pressure "
     msg5 = weather['current_conditions']['barometer']['reading'][:-3]
     msg6 = " mbar"
     print msg1+msg2+msg3+msg4+msg5+msg6
+
 
 def dataPlotly():
     return dataNetwork()
@@ -160,15 +153,18 @@ def dataPlotlyHandler():
     stream = py.Stream(stream_token)
     stream.open()
 
-    while i < 99:
+    while True:
         stream_data = dataPlotly()
         stream.write({'x': i, 'y': stream_data})
         i += 1
         time.sleep(0.25)
 
+
+
  
 if __name__ == '__main__':
 
+	
 	signal.signal(signal.SIGINT, interruptHandler)
 
     	threadx = Thread(target=dataNetworkHandler)
@@ -177,12 +173,15 @@ if __name__ == '__main__':
 	thready = Thread(target=dataMessageHandler)
 	thready.start()
 	
-	threadz = Thread(target=dataPlotlyHandler)
-	threadz.start()
+	#threadz = Thread(target=dataPlotlyHandler)
+	#threadz.start()
 
     	while True:
 		print bar1
         	print "Hello Internet of Things 101"
+		#api.add_resource(Network,'/network')
+		#app.run(host='0.0.0.0',debug=True) 
+		#dataWeatherHandler()
 		api.add_resource(Network, '/network')
 		app.run(host='0.0.0.0', debug=True)		
 		time.sleep(5)

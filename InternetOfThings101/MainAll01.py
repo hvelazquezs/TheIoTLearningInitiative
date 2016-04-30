@@ -23,7 +23,9 @@ bar0="**************************************************************"
 bar1="~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 bar2="=============================================================="
 
-relay=grove.GroveRelay(4)
+relay1=grove.GroveRelay(2)
+relay2=grove.GroveRelay(3)
+
 
 p=0
 stream = py.Stream(stream_token)
@@ -31,15 +33,18 @@ idDevice = "No MAC Get it..."
 message = "Empty message..."
 data={}
 
+
 myLcd = lcd.Jhd1313m1(0, 0x3E, 0x62) 
 myLcd.setCursor(0,0) 
 myLcd.setColor(255,0,0)
 myLcd.setCursor(0,0) 
-myLcd.write('Initialized...')
+myLcd.write('   Initialized...')
 myLcd.setCursor(1,0) 
-myLcd.write('Please Wait . . .') 
+myLcd.write('  Please Wait...') 
 app=Flask(__name__)
 api=Api(app)
+
+
 
 
 def GetMACAdress():
@@ -62,9 +67,11 @@ def dataNetworkHandler():
 		b=15
 		mqttclient = paho.Client()
 		mqttclient.on_publish = on_publish
+		mqttclient.on_message = onRelay
 		mqttclient.connect("test.mosquitto.org", 1883, 60)
 		while True:
 			dataWeatherHandler()
+			#dataMessageHandler()
 			LcdShow="              "
 			print bar0
 			print "Hello Internet of Things 101"
@@ -77,7 +84,10 @@ def dataNetworkHandler():
 			pass0={'network':packets}
 			dweepy.dweet_for('hvelazquezs',pass0)
 			mqttmsg="IoT101/"+idDevice+"/Network"
-			mqttclient.publish(mqttmsg,message)			
+			mqttclient.publish(mqttmsg,message)
+			mqttmsk="IoT101/"+idDevice+"/Relay"
+			mqttclient.subscribe(mqttmsk,1)
+			print mqttmsk
 			LcdShow=('MAC: '+ idDevice)
 			myLcd.setCursor(1,8) 
 			myLcd.write(' CPU%'+str(psutil.cpu_percent()))
@@ -96,8 +106,8 @@ def dataNetworkHandler():
 			if (i==16):
 				i=0
 		
-			
-			time.sleep(2)
+			#dataMessageHandler()
+			time.sleep(1)
 			
 
 class Network(Resource):
@@ -105,26 +115,31 @@ class Network(Resource):
 		return(data)
 
 def onRelay():
-    relay.on()
+    relay1.on()
+    relay2.on()
+    myLcd.setColor(255, 0, 0)
     print "Relay is on..."
     time.sleep(5)
-    relay.off()
+    relay1.off()
+    relay2.off()
+    myLcd.setColor(0, 255, 0)
     print "Relay is off..."
-
-def on_message(mosq, obj, msg):
-    print "MQTT dataMessageHandler %s %s" % (msg.topic, msg.payload)
-
+       
+    
 def dataMessageHandler():
     mqttclient = paho.Client()
-    mqttclient.on_message = on_Relay()
+    mqttclient.on_message = onRelay()
     mqttclient.connect("test.mosquitto.org", 1883, 60)
-    mqttclient.subscribe("IoT101/iD¿dDevice/Message", 0)
+    mqttclient.subscribe("IoT101/"+idDevice+"/Port2", 0)
+    #mqttclient.on_message = onRelay()
+    myLcd.setColor(0, 0, 255)
     while mqttclient.loop() == 0:
-          pass
+        pass
 
 def dataWeatherHandler():
     weather = pywapi.get_weather_from_weather_com('MXJO0043', 'metric')
     msg1 = "Weather.com report in " 
+    #+ weather['location']['city']
     msg2 = ",Temperature "
     msg3 = weather['current_conditions']['temperature']+" C"
     msg4 = ", Atmospheric Pressure "
@@ -132,11 +147,12 @@ def dataWeatherHandler():
     msg6 = " mbar"
     print msg1+msg2+msg3+msg4+msg5+msg6
 
+
 def dataPlotly():
     return dataNetwork()
 
 def dataPlotlyHandler():
-
+    
     py.sign_in(username, api_key)
 
     trace1 = Scatter(
@@ -166,27 +182,29 @@ def dataPlotlyHandler():
         i += 1
         time.sleep(0.25)
 
+
+
  
 if __name__ == '__main__':
 
+	
 	signal.signal(signal.SIGINT, interruptHandler)
-
-    	threadx = Thread(target=dataNetworkHandler)
-    	threadx.start()
 
 	thready = Thread(target=dataMessageHandler)
 	thready.start()
-	
-	threadz = Thread(target=dataPlotlyHandler)
-	threadz.start()
-
-    	while True:
-		print bar1
-        	print "Hello Internet of Things 101"
-		api.add_resource(Network, '/network')
-		app.run(host='0.0.0.0', debug=True)		
-		time.sleep(5)
-	
+	threadx = Thread(target=dataNetworkHandler)
+    	threadx.start()
+	#threadz = Thread(target=dataPlotlyHandler)
+	#threadz.start()
+   
+	#while True:		
+	#	print bar1
+        #	print "Hello Internet of Things 101" 
+		#api.add_resource(Network, '/network')
+		#app.run(host='0.0.0.0', debug=True)		
+	#	time.sleep(5)
 
 # End of File
+
+
 
