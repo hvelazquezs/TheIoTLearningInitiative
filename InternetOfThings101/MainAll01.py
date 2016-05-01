@@ -3,6 +3,7 @@ import pyupm_i2clcd as lcd
 import psutil
 import pywapi
 import signal
+import os
 import sys
 import time
 import paho.mqtt.client as paho
@@ -24,27 +25,22 @@ bar1="~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 bar2="=============================================================="
 
 relay1=grove.GroveRelay(2)
-relay2=grove.GroveRelay(3)
-
 
 p=0
 stream = py.Stream(stream_token)
-idDevice = "No MAC Get it..."
+idDevice = "None"
 message = "Empty message..."
 data={}
-
 
 myLcd = lcd.Jhd1313m1(0, 0x3E, 0x62) 
 myLcd.setCursor(0,0) 
 myLcd.setColor(255,0,0)
 myLcd.setCursor(0,0) 
-myLcd.write('   Initialized...')
+myLcd.write('  Starting...')
 myLcd.setCursor(1,0) 
 myLcd.write('  Please Wait...') 
 app=Flask(__name__)
 api=Api(app)
-
-
 
 
 def GetMACAdress():
@@ -55,7 +51,43 @@ def interruptHandler(signal, frame):
 		sys.exit(0)
 
 def on_publish(mosq, obj, msg):
-		pass
+    pass
+
+def on_Port2(mosq, obj, msg):
+    print "MQTT dataMessageHandler %s %s" % (msg.topic, msg.payload)
+    
+    if (msg.payload=="off" or msg.payload=="Off" or msg.payload=="OFF"):
+               relay1.off()
+               print "Relay is off..."
+               myLcd.setColor(255, 32, 0)
+    
+    elif (msg.payload=="on" or msg.payload=="ON" or msg.payload=="On"):
+               relay1.on()
+               print "Relay is on..."
+               myLcd.setColor(0, 255, 0)
+
+    elif (msg.payload=="break" or msg.payload=="Break"):
+           print "Program terminated by remote user..."
+           relay1.off()
+           myLcd.setColor(255,0,0)
+           myLcd.setCursor(0,0) 
+           myLcd.write('                ') 
+           myLcd.setCursor(1,0) 
+           myLcd.write('                ') 
+           myLcd.setColor(0,0,0)
+           os._exit(1)
+    else:
+           print "write only 'on' or 'off' or break to terminate..."
+
+def dataMessageHandler():
+    idDevice=GetMACAdress()
+    mqttclient = paho.Client()
+    mqttclient.on_message = on_Port2
+    mqttclient.connect("test.mosquitto.org", 1883, 60)
+    mqttclient.subscribe("IoT101/" + idDevice + "/Port2", 0)
+    while mqttclient.loop() == 0:
+        pass
+
 
 def dataNetwork():
     		netdata = psutil.net_io_counters()
@@ -67,27 +99,21 @@ def dataNetworkHandler():
 		b=15
 		mqttclient = paho.Client()
 		mqttclient.on_publish = on_publish
-		mqttclient.on_message = onRelay
 		mqttclient.connect("test.mosquitto.org", 1883, 60)
 		while True:
 			dataWeatherHandler()
-			#dataMessageHandler()
 			LcdShow="              "
 			print bar0
-			print "Hello Internet of Things 101"
 			idDevice=GetMACAdress()		
                         myLcd.setColor(53, 39, 249)
                         packets = dataNetwork()
                         message = idDevice + " " + str(packets)
 			print "dataNetworkHandler " + message
 			print "MQTT dataNetworkHandler " + message
+			mqttmsg = "IoT101/" + idDevice + "/Network"
+			mqttclient.publish(mqttmsg, message)
 			pass0={'network':packets}
 			dweepy.dweet_for('hvelazquezs',pass0)
-			mqttmsg="IoT101/"+idDevice+"/Network"
-			mqttclient.publish(mqttmsg,message)
-			mqttmsk="IoT101/"+idDevice+"/Relay"
-			mqttclient.subscribe(mqttmsk,1)
-			print mqttmsk
 			LcdShow=('MAC: '+ idDevice)
 			myLcd.setCursor(1,8) 
 			myLcd.write(' CPU%'+str(psutil.cpu_percent()))
@@ -105,41 +131,14 @@ def dataNetworkHandler():
 			
 			if (i==16):
 				i=0
-		
-			#dataMessageHandler()
-			time.sleep(1)
+
+
+			time.sleep(2)
 			
-
-class Network(Resource):
-	def get(self):
-		return(data)
-
-def onRelay():
-    relay1.on()
-    relay2.on()
-    myLcd.setColor(255, 0, 0)
-    print "Relay is on..."
-    time.sleep(5)
-    relay1.off()
-    relay2.off()
-    myLcd.setColor(0, 255, 0)
-    print "Relay is off..."
-       
     
-def dataMessageHandler():
-    mqttclient = paho.Client()
-    mqttclient.on_message = onRelay()
-    mqttclient.connect("test.mosquitto.org", 1883, 60)
-    mqttclient.subscribe("IoT101/"+idDevice+"/Port2", 0)
-    #mqttclient.on_message = onRelay()
-    myLcd.setColor(0, 0, 255)
-    while mqttclient.loop() == 0:
-        pass
-
 def dataWeatherHandler():
     weather = pywapi.get_weather_from_weather_com('MXJO0043', 'metric')
     msg1 = "Weather.com report in " 
-    #+ weather['location']['city']
     msg2 = ",Temperature "
     msg3 = weather['current_conditions']['temperature']+" C"
     msg4 = ", Atmospheric Pressure "
@@ -183,6 +182,9 @@ def dataPlotlyHandler():
         time.sleep(0.25)
 
 
+class Network(Resource):
+	def get(self):
+		return(data)
 
  
 if __name__ == '__main__':
@@ -190,19 +192,22 @@ if __name__ == '__main__':
 	
 	signal.signal(signal.SIGINT, interruptHandler)
 
-	thready = Thread(target=dataMessageHandler)
-	thready.start()
-	threadx = Thread(target=dataNetworkHandler)
+
+   	threadx = Thread(target=dataNetworkHandler)
     	threadx.start()
-	#threadz = Thread(target=dataPlotlyHandler)
+
+    	threadx = Thread(target=dataMessageHandler)
+    	threadx.start()
+
+	threadz = Thread(target=dataPlotlyHandler)
 	#threadz.start()
    
-	#while True:		
-	#	print bar1
-        #	print "Hello Internet of Things 101" 
-		#api.add_resource(Network, '/network')
-		#app.run(host='0.0.0.0', debug=True)		
-	#	time.sleep(5)
+	while True:		
+		print bar1
+        	print "Hello Internet of Things 101" 
+		api.add_resource(Network, '/network')
+		app.run(host='0.0.0.0', debug=True)		
+		time.sleep(5)
 
 # End of File
 
