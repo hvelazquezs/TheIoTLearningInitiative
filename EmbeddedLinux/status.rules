@@ -1,0 +1,1 @@
+KERNEL=="status", SYMLINK+="status_0", MODE="0444"
