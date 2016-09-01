@@ -1,0 +1,4 @@
+sudo umount /media/flashdrive/
+
+
+
